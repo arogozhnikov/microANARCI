@@ -2,17 +2,10 @@
 #    Copyright (C) 2016 Oxford Protein Informatics Group (OPIG)
 #
 #    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+#    it under the terms of the BSD 3-Clause License.
 #
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.#
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#    You should have received a copy of the BSD 3-Clause Licence
+#    along with this program.  If not, see <https://opensource.org/license/bsd-3-clause/>.
 
 '''
 ANARCI - Antigen Receptor Numbering And ClassIfication
@@ -92,24 +85,31 @@ def read_fasta(filename):
     """
     Read a sequence file and parse as description, string 
     """
-    return [ r for r in fasta_iter(filename) ]
+    # return [ r for r in fasta_iter(filename) ]
+    try:
+        return [r for r in fasta_iter(filename)]
+    except StopIteration:
+        pass  # Do nothing when the generator stops
 
 def fasta_iter(fasta_name):
     """
-    Given a fasta file. yield tuples of header, sequence
+    Given a fasta file, yield tuples of header, sequence
     https://www.biostars.org/p/710/
     """
-    if fasta_name.endswith( '.gz' ): # IOError raised upon iteration if not a real gzip file.
-        fh = gzip.open(fasta_name)
+    if fasta_name.endswith('.gz'):
+        fh = gzip.open(fasta_name, 'rt')  # 'rt' for text mode, required for Python 3
     else:
-        fh = open(fasta_name)
+        fh = open(fasta_name, 'r')
+    
     faiter = (x[1] for x in groupby(fh, lambda line: line[0] == ">"))
+    
     for header in faiter:
-        header = next(header)[1:].strip()
-        #header = header.next()[1:].strip()
-        seq = "".join(s.strip() for s in next(faiter))
-        yield header, seq
-
+        try:
+            header = next(header)[1:].strip()
+            seq = "".join(s.strip() for s in next(faiter))
+            yield header, seq
+        except StopIteration:
+            break
 
 def write_fasta(sequences, f):
     """
@@ -523,7 +523,6 @@ def run_hmmer(sequence_list,hmm_database="ALL",hmmerpath="", ncpu=None, bit_scor
         if pr_stderr:
             _f = os.fdopen(output_filehandle) # This is to remove the filedescriptor from the os. I have had problems with it before.
             _f.close()
-            
             raise HMMscanError(pr_stderr)
         results = parse_hmmer_output(output_filehandle, bit_score_threshold=bit_score_threshold, hmmer_species=hmmer_species)
         
@@ -741,7 +740,8 @@ def check_for_j( sequences, alignments, scheme ):
                             # Sandwich the presumed CDR3 region between the V and J regions.
 
                             vRegion   = ali[:cys_ai+1]
-                            jRegion   = [ (state, index+cys_si+1) for state, index in re_states[0] if state[0] >= 117 ]
+                            # jRegion   = [ (state, index+cys_si+1) for state, index in re_states[0] if state[0] >= 117 ]
+                            jRegion = [(state, index+cys_si+1) for state, index in re_states[0] if (state[0] >= 117) and (index is not None)]
                             cdrRegion = []
                             next = 105
                             for si in range( cys_si+1, jRegion[0][1] ):
@@ -764,7 +764,7 @@ def check_for_j( sequences, alignments, scheme ):
 # Main function for ANARCI 
 # Name conflict with function, module and package is kept for legacy unless issues are reported in future. 
 def anarci(sequences, scheme="imgt", database="ALL", output=False, outfile=None, csv=False, allow=set(["H","K","L","A","B","G","D"]), 
-           hmmerpath="", ncpu=None, assign_germline=False, allowed_species=None, bit_score_threshold=80):
+           hmmerpath="", ncpu=None, assign_germline=False, allowed_species=['human','mouse'], bit_score_threshold=80):
     """
     The main function for anarci. Identify antibody and TCR domains, number them and annotate their germline and species. 
 
@@ -953,7 +953,7 @@ def run_anarci( seq, ncpu=1, **kwargs):
 
 
 # Wrapper function for simple sequence in numbering and chain type out behaviour. 
-def number(sequence, scheme="imgt", database="ALL", allow=set(["H","K","L","A","B","G","D"])):
+def number(sequence, scheme="imgt", database="ALL", allow=set(["H","K","L","A","B","G","D"]), allowed_species=['human','mouse']):
     """
     Given a sequence string, use anarci to number it using the scheme of choice.
     Only the first domain will be recognised and numbered
@@ -981,7 +981,10 @@ def number(sequence, scheme="imgt", database="ALL", allow=set(["H","K","L","A","
         return False, False
    
     try:
-        numbered, alignment_details, _ = anarci( [("sequence_0", sequence)], scheme=scheme, database=database, output=False, allow=allow )
+        if not allowed_species:
+            numbered, alignment_details, _ = anarci( [("sequence_0", sequence)], scheme=scheme, database=database, output=False, allow=allow )
+        else:
+            numbered, alignment_details, _ = anarci( [("sequence_0", sequence)], scheme=scheme, database=database, output=False, allow=allow, allowed_species = allowed_species )
     except AssertionError: # Catch where the user has tried to number a TCR with an antibody scheme
         return False, False
     
