@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "anarci"
-version = '2021.02.04' # named after release date of original conda package
+version = '2025.02' # Corresponds to state of main branch in anarci in Feb 2025
 description = "minimized version of anarci"
 license = "BSD-3-CLAUSE"
 requires-python = ">=3.8"
