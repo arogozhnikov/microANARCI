@@ -310,6 +310,8 @@ def _domains_are_same(dom1, dom2):
         return False
     return True
 
+class _Stats:
+    n_warnings_on_species_left = 3
 
 def _parse_hmmer_query(query, bit_score_threshold=80, hmmer_species=None):
     """
@@ -343,7 +345,9 @@ def _parse_hmmer_query(query, bit_score_threshold=80, hmmer_species=None):
             if hit_correct_species:
                 hsp_list = hit_correct_species
             else:
-                print("Limiting hmmer search to species %s was requested but hits did not achieve a high enough bitscore. Reverting to using any species" %(hmmer_species))
+                if _Stats.n_warnings_on_species_left > 0:
+                    _Stats.n_warnings_on_species_left -= 1
+                    print("Limiting hmmer search to species %s was requested but hits did not achieve a high enough bitscore. Reverting to using any species" %(hmmer_species))
                 hsp_list = query.hsps
         else:
             hsp_list = query.hsps
